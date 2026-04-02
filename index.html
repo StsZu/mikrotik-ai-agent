@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI-Агенти для MikroTik — Claude Code CLI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter', 'sans-serif'] },
+      colors: {
+        brand: {
+          50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe',
+          300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6',
+          600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af',
+          900: '#1e3a8a', 950: '#172554'
+        }
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; }
+  html { scroll-behavior: smooth; }
+
+  /* Selection toolbar */
+  #selection-toolbar {
+    position: fixed; z-index: 9999; display: none;
+    background: #1e293b; border-radius: 10px; padding: 6px 10px;
+    gap: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    transform: translateX(-50%);
+    flex-direction: row; align-items: center;
+  }
+  #selection-toolbar button {
+    background: #334155; color: #e2e8f0; border: none; border-radius: 6px;
+    padding: 5px 12px; cursor: pointer; font-size: 13px; font-weight: 500;
+    display: flex; align-items: center; gap: 5px; transition: background .15s;
+    font-family: 'Inter', sans-serif;
+  }
+  #selection-toolbar button:hover { background: #3b82f6; }
+
+  /* Translation popup */
+  #translation-popup {
+    position: fixed; z-index: 9998; display: none;
+    background: white; border-radius: 12px; padding: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18); max-width: 320px; width: 90%;
+    border: 1px solid #e2e8f0;
+  }
+
+  /* Nav */
+  nav { position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    background: rgba(15, 23, 42, 0.85); border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  /* Code blocks */
+  .code-block {
+    background: #0f172a; border-radius: 10px; padding: 16px 20px;
+    font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.7;
+    color: #94a3b8; overflow-x: auto; position: relative;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .code-block .kw { color: #60a5fa; }
+  .code-block .str { color: #86efac; }
+  .code-block .cm { color: #475569; font-style: italic; }
+  .code-block .hl { color: #fcd34d; }
+
+  /* Quiz */
+  .quiz-option {
+    cursor: pointer; border: 2px solid #e2e8f0; border-radius: 8px;
+    padding: 10px 14px; transition: all .2s; margin-bottom: 6px;
+    background: white; text-align: left; width: 100%; font-family: 'Inter', sans-serif;
+  }
+  .quiz-option:hover { border-color: #3b82f6; background: #eff6ff; }
+  .quiz-option.correct { border-color: #10b981; background: #d1fae5; color: #065f46; }
+  .quiz-option.wrong { border-color: #ef4444; background: #fee2e2; color: #991b1b; }
+
+  /* Step cards */
+  .step-card { counter-increment: step-counter; }
+  .step-num {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: white; font-weight: 700; font-size: 16px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+
+  /* Glow */
+  .glow { box-shadow: 0 0 40px rgba(59,130,246,0.15); }
+
+  /* Terminal dots */
+  .terminal-dots::before {
+    content: '● ● ●';
+    color: #475569; font-size: 10px; letter-spacing: 4px;
+    display: block; margin-bottom: 12px;
+  }
+
+  /* Animate */
+  @keyframes fadeInUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+  .fade-in { animation: fadeInUp .6s ease both; }
+
+  /* Hero gradient */
+  .hero-bg {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%);
+    position: relative; overflow: hidden;
+  }
+  .hero-bg::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(59,130,246,0.2) 0%, transparent 70%);
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #0f172a; }
+  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+  .ai-result { line-height: 1.7; }
+  .ai-result h1,.ai-result h2,.ai-result h3 { font-weight: 600; margin: 12px 0 6px; }
+  .ai-result ul,.ai-result ol { padding-left: 20px; }
+  .ai-result code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  .ai-result strong { font-weight: 600; }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100">
+
+<!-- SELECTION TOOLBAR -->
+<div id="selection-toolbar">
+  <button onclick="handleTTS()" onmousedown="e=>e.preventDefault()">
+    <i class="ph-fill ph-speaker-high"></i> Слухати
+  </button>
+  <button onclick="handleTranslate()" onmousedown="e=>e.preventDefault()">
+    <i class="ph ph-translate"></i> Перекласти
+  </button>
+</div>
+
+<!-- TRANSLATION POPUP -->
+<div id="translation-popup">
+  <div class="flex justify-between items-center mb-3">
+    <span class="font-semibold text-slate-800 text-sm flex items-center gap-2">
+      <i class="ph-fill ph-translate text-brand-500"></i> Переклад
+    </span>
+    <button onclick="closeTranslation()" class="text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
+  </div>
+  <div id="translation-text" class="text-slate-700 text-sm leading-relaxed"></div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
+        <i class="ph-fill ph-robot text-white text-sm"></i>
+      </div>
+      <span class="font-bold text-white text-sm">MikroTik × AI</span>
+    </div>
+    <div class="hidden md:flex items-center gap-6 text-sm text-slate-400">
+      <a href="#about" class="hover:text-white transition-colors">Про технологію</a>
+      <a href="#install" class="hover:text-white transition-colors">Встановлення</a>
+      <a href="#systems" class="hover:text-white transition-colors">Системи</a>
+      <a href="#case" class="hover:text-white transition-colors">Кейс</a>
+      <a href="#dual-ai" class="hover:text-white transition-colors">Два AI</a>
+      <a href="#quiz" class="hover:text-white transition-colors">Квіз</a>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="hidden md:block text-xs text-slate-500">Виділи текст → слухай</span>
+      <a href="#assistant" class="bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors">
+        AI-асистент
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero-bg py-20 md:py-32 px-4">
+  <div class="max-w-4xl mx-auto text-center relative z-10 fade-in">
+    <div class="inline-flex items-center gap-2 bg-brand-900/60 border border-brand-700/50 text-brand-300 text-xs font-medium px-4 py-2 rounded-full mb-6">
+      <i class="ph-fill ph-lightning"></i>
+      Реальний досвід · RouterOS 7.22.1 · WireGuard VPN · RB4011iGS+
+    </div>
+    <h1 class="text-4xl md:text-6xl font-extrabold text-white mb-6 leading-tight">
+      AI-Агенти для<br>
+      <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-cyan-400">налаштування MikroTik</span>
+    </h1>
+    <p class="text-lg md:text-xl text-slate-400 mb-10 max-w-2xl mx-auto leading-relaxed">
+      Як Claude Code CLI допоміг звичайній людині без мережевого досвіду пройти шлях від хаотичного роутера до безпечної системи з WireGuard VPN — крок за кроком.
+    </p>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto">
+      <div class="bg-white/5 rounded-xl p-4 border border-white/10">
+        <div class="text-2xl font-bold text-brand-400">6</div>
+        <div class="text-xs text-slate-400 mt-1">фаз роботи</div>
+      </div>
+      <div class="bg-white/5 rounded-xl p-4 border border-white/10">
+        <div class="text-2xl font-bold text-cyan-400">8</div>
+        <div class="text-xs text-slate-400 mt-1">VPN клієнтів</div>
+      </div>
+      <div class="bg-white/5 rounded-xl p-4 border border-white/10">
+        <div class="text-2xl font-bold text-green-400">0</div>
+        <div class="text-xs text-slate-400 mt-1">відкритих портів</div>
+      </div>
+      <div class="bg-white/5 rounded-xl p-4 border border-white/10">
+        <div class="text-2xl font-bold text-yellow-400">v7</div>
+        <div class="text-xs text-slate-400 mt-1">RouterOS</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION: ЩО ТАКЕ АГЕНТИ -->
+<section id="about" class="py-16 px-4 bg-slate-900">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-12">
+      <span class="text-brand-400 text-sm font-semibold uppercase tracking-widest">Технологія</span>
+      <h2 class="text-3xl md:text-4xl font-bold text-white mt-2">Що таке Claude Code CLI?</h2>
+      <p class="text-slate-400 mt-3 max-w-2xl mx-auto">Агент — це не просто чатбот. Він бачить ваші файли, виконує команди та приймає рішення самостійно.</p>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-6 mb-10">
+      <div class="bg-slate-800 rounded-2xl p-6 border border-slate-700 glow">
+        <div class="w-12 h-12 rounded-xl bg-brand-900 flex items-center justify-center mb-4">
+          <i class="ph-fill ph-robot text-brand-400 text-2xl"></i>
+        </div>
+        <h3 class="text-lg font-bold text-white mb-2">Звичайний чатбот</h3>
+        <ul class="text-slate-400 text-sm space-y-2">
+          <li class="flex items-start gap-2"><i class="ph ph-x text-red-400 mt-0.5 flex-shrink-0"></i>Відповідає текстом</li>
+          <li class="flex items-start gap-2"><i class="ph ph-x text-red-400 mt-0.5 flex-shrink-0"></i>Не бачить ваших файлів</li>
+          <li class="flex items-start gap-2"><i class="ph ph-x text-red-400 mt-0.5 flex-shrink-0"></i>Не виконує команди</li>
+          <li class="flex items-start gap-2"><i class="ph ph-x text-red-400 mt-0.5 flex-shrink-0"></i>Кожен раз з нуля</li>
+        </ul>
+      </div>
+      <div class="bg-gradient-to-br from-brand-900 to-brand-950 rounded-2xl p-6 border border-brand-700/50 glow">
+        <div class="w-12 h-12 rounded-xl bg-brand-700 flex items-center justify-center mb-4">
+          <i class="ph-fill ph-cpu text-white text-2xl"></i>
+        </div>
+        <h3 class="text-lg font-bold text-white mb-2">Claude Code CLI Агент</h3>
+        <ul class="text-slate-300 text-sm space-y-2">
+          <li class="flex items-start gap-2"><i class="ph-fill ph-check-circle text-green-400 mt-0.5 flex-shrink-0"></i>Читає та редагує файли проєкту</li>
+          <li class="flex items-start gap-2"><i class="ph-fill ph-check-circle text-green-400 mt-0.5 flex-shrink-0"></i>Виконує команди в терміналі</li>
+          <li class="flex items-start gap-2"><i class="ph-fill ph-check-circle text-green-400 mt-0.5 flex-shrink-0"></i>Пам'ятає контекст між сесіями</li>
+          <li class="flex items-start gap-2"><i class="ph-fill ph-check-circle text-green-400 mt-0.5 flex-shrink-0"></i>Генерує скрипти та запускає їх</li>
+          <li class="flex items-start gap-2"><i class="ph-fill ph-check-circle text-green-400 mt-0.5 flex-shrink-0"></i>Підтримує MCP-протокол</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="bg-slate-800 rounded-2xl p-6 border border-slate-700">
+      <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+        <i class="ph-fill ph-flow-arrow text-brand-400"></i>
+        Як це працює в парі з MikroTik
+      </h3>
+      <div class="grid md:grid-cols-5 gap-2 items-center text-center text-sm">
+        <div class="bg-slate-700 rounded-xl p-3">
+          <i class="ph-fill ph-user text-brand-400 text-xl mb-1 block"></i>
+          <span class="text-slate-300">Ти питаєш</span>
+        </div>
+        <div class="text-slate-600 text-xl hidden md:block">→</div>
+        <div class="bg-slate-700 rounded-xl p-3">
+          <i class="ph-fill ph-cpu text-yellow-400 text-xl mb-1 block"></i>
+          <span class="text-slate-300">Агент аналізує конфіг</span>
+        </div>
+        <div class="text-slate-600 text-xl hidden md:block">→</div>
+        <div class="bg-slate-700 rounded-xl p-3">
+          <i class="ph-fill ph-terminal text-green-400 text-xl mb-1 block"></i>
+          <span class="text-slate-300">Генерує CLI команди</span>
+        </div>
+      </div>
+      <div class="grid md:grid-cols-5 gap-2 items-center text-center text-sm mt-2">
+        <div class="bg-slate-700 rounded-xl p-3">
+          <i class="ph-fill ph-eye text-cyan-400 text-xl mb-1 block"></i>
+          <span class="text-slate-300">Ти перевіряєш у WinBox</span>
+        </div>
+        <div class="text-slate-600 text-xl hidden md:block">←</div>
+        <div class="bg-slate-700 rounded-xl p-3">
+          <i class="ph-fill ph-file-text text-purple-400 text-xl mb-1 block"></i>
+          <span class="text-slate-300">Зберігає звіти/бекапи</span>
+        </div>
+        <div class="text-slate-600 text-xl hidden md:block">←</div>
+        <div class="bg-slate-700 rounded-xl p-3">
+          <i class="ph-fill ph-router text-brand-400 text-xl mb-1 block"></i>
+          <span class="text-slate-300">Виконує на роутері</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION: ВСТАНОВЛЕННЯ -->
+<section id="install" class="py-16 px-4 bg-slate-950">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-12">
+      <span class="text-cyan-400 text-sm font-semibold uppercase tracking-widest">Старт</span>
+      <h2 class="text-3xl md:text-4xl font-bold text-white mt-2">Як встановити та запустити агента</h2>
+      <p class="text-slate-400 mt-3 max-w-2xl mx-auto">4 кроки від нуля до повноцінної роботи з MikroTik через AI</p>
+    </div>
+
+    <div class="space-y-6">
+      <!-- Step 1 -->
+      <div class="step-card flex gap-4 bg-slate-900 rounded-2xl p-6 border border-slate-800">
+        <div class="step-num">1</div>
+        <div class="flex-1">
+          <h3 class="text-white font-bold text-lg mb-1">Встановити Node.js та Claude Code CLI</h3>
+          <p class="text-slate-400 text-sm mb-3">Claude Code — це CLI-програма, яка встановлюється через npm. Потрібен Node.js 18+.</p>
+          <div class="code-block terminal-dots">
+<span class="cm"># 1. Встановити Node.js (якщо немає)</span>
+<span class="cm"># macOS:</span>
+<span class="kw">brew</span> install node
+
+<span class="cm"># 2. Встановити Claude Code CLI</span>
+<span class="kw">npm</span> install -g @anthropic-ai/claude-code
+
+<span class="cm"># 3. Перевірити встановлення</span>
+<span class="kw">claude</span> --version
+</div>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="step-card flex gap-4 bg-slate-900 rounded-2xl p-6 border border-slate-800">
+        <div class="step-num">2</div>
+        <div class="flex-1">
+          <h3 class="text-white font-bold text-lg mb-1">Авторизуватись та запустити</h3>
+          <p class="text-slate-400 text-sm mb-3">Потрібен API ключ Anthropic або підписка Claude Pro/Max. Перший запуск — в робочій папці проєкту.</p>
+          <div class="code-block terminal-dots">
+<span class="cm"># Запустити в папці MikroTik-проєкту</span>
+<span class="kw">cd</span> ~/Projects/Mikrotik_Agent
+<span class="kw">claude</span>
+
+<span class="cm"># При першому запуску браузер відкриє сторінку авторизації</span>
+<span class="cm"># Або встановити API ключ вручну:</span>
+<span class="hl">export</span> ANTHROPIC_API_KEY=<span class="str">"ваш-ключ"</span>
+</div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step-card flex gap-4 bg-slate-900 rounded-2xl p-6 border border-slate-800">
+        <div class="step-num">3</div>
+        <div class="flex-1">
+          <h3 class="text-white font-bold text-lg mb-1">Створити CLAUDE.md — "мозок" агента</h3>
+          <p class="text-slate-400 text-sm mb-3">Файл CLAUDE.md описує роль агента, правила та структуру проєкту. Агент читає його при кожному запуску.</p>
+          <div class="code-block terminal-dots">
+<span class="cm"># CLAUDE.md — приклад для MikroTik проєкту</span>
+<span class="hl">## Роль агента</span>
+Ти — мережевий інженер-автоматизатор.
+
+<span class="hl">## Середовище</span>
+- Python: <span class="str">venv/bin/python3</span>
+- SSH: <span class="str">ssh mikrotik</span> (alias у ~/.ssh/config)
+- Роутер: <span class="str">10.0.0.254</span>, user: <span class="str">Stas</span>
+
+<span class="hl">## Правила</span>
+- НІКОЛИ не міняти конфіг без явної команди
+- ЗАВЖДИ робити backup перед змінами
+- Логувати всі операції у logs/
+</div>
+        </div>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="step-card flex gap-4 bg-slate-900 rounded-2xl p-6 border border-slate-800">
+        <div class="step-num">4</div>
+        <div class="flex-1">
+          <h3 class="text-white font-bold text-lg mb-1">Налаштувати SSH до MikroTik</h3>
+          <p class="text-slate-400 text-sm mb-3">Агент підключається до роутера через SSH-ключ (не пароль). Це безпечно і зручно.</p>
+          <div class="code-block terminal-dots">
+<span class="cm"># ~/.ssh/config — аліас для MikroTik</span>
+Host mikrotik
+  HostName <span class="str">10.0.0.254</span>
+  User <span class="str">Stas</span>
+  IdentityFile <span class="str">~/.ssh/id_rsa</span>
+  PubkeyAcceptedAlgorithms +ssh-rsa
+  HostKeyAlgorithms +ssh-rsa
+
+<span class="cm"># Перевірити підключення</span>
+<span class="kw">ssh</span> mikrotik
+<span class="cm"># → [Stas@StanislavZubar98] ></span>
+</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-8 bg-brand-950 border border-brand-800 rounded-2xl p-6">
+      <div class="flex gap-3">
+        <i class="ph-fill ph-lightbulb text-yellow-400 text-xl flex-shrink-0 mt-0.5"></i>
+        <div>
+          <h4 class="text-white font-semibold mb-1">Порада для початківців</h4>
+          <p class="text-slate-300 text-sm leading-relaxed">Не потрібно знати мережеві протоколи. Просто описуй завдання природною мовою: <em>"Хочу закрити всі порти на WAN крім потрібних"</em> або <em>"Зроби щоб тільки мій MacBook міг заходити в роутер"</em>. Агент перетворить це на конкретні RouterOS команди.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION: СИСТЕМИ MIKROTIK -->
+<section id="systems" class="py-16 px-4 bg-slate-900">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-12">
+      <span class="text-green-400 text-sm font-semibold uppercase tracking-widest">RouterOS</span>
+      <h2 class="text-3xl md:text-4xl font-bold text-white mt-2">Ключові системи MikroTik</h2>
+      <p class="text-slate-400 mt-3 max-w-2xl mx-auto">Що є всередині RouterOS і з чого починати налаштування</p>
+    </div>
+
+    <div id="systems-grid" class="grid md:grid-cols-2 gap-4"></div>
+
+    <div class="mt-8 bg-slate-800 rounded-2xl p-6 border border-slate-700">
+      <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+        <i class="ph-fill ph-shield-check text-green-400"></i>
+        Пріоритети при налаштуванні (рекомендований порядок)
+      </h3>
+      <div class="grid md:grid-cols-4 gap-3 text-center text-sm">
+        <div class="bg-red-900/30 border border-red-800/50 rounded-xl p-3">
+          <div class="text-red-400 font-bold text-lg">1</div>
+          <div class="text-slate-300 mt-1">Безпека WAN</div>
+          <div class="text-slate-500 text-xs mt-1">firewall input</div>
+        </div>
+        <div class="bg-orange-900/30 border border-orange-800/50 rounded-xl p-3">
+          <div class="text-orange-400 font-bold text-lg">2</div>
+          <div class="text-slate-300 mt-1">Очищення</div>
+          <div class="text-slate-500 text-xs mt-1">legacy rules</div>
+        </div>
+        <div class="bg-blue-900/30 border border-blue-800/50 rounded-xl p-3">
+          <div class="text-blue-400 font-bold text-lg">3</div>
+          <div class="text-slate-300 mt-1">Upgrade</div>
+          <div class="text-slate-500 text-xs mt-1">RouterOS v7</div>
+        </div>
+        <div class="bg-green-900/30 border border-green-800/50 rounded-xl p-3">
+          <div class="text-green-400 font-bold text-lg">4</div>
+          <div class="text-slate-300 mt-1">VPN</div>
+          <div class="text-slate-500 text-xs mt-1">WireGuard</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION: РЕАЛЬНИЙ КЕЙС -->
+<section id="case" class="py-16 px-4 bg-slate-950">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-12">
+      <span class="text-purple-400 text-sm font-semibold uppercase tracking-widest">Реальний кейс</span>
+      <h2 class="text-3xl md:text-4xl font-bold text-white mt-2">Шлях від хаосу до порядку</h2>
+      <p class="text-slate-400 mt-3 max-w-2xl mx-auto">RB4011iGS+ · 6 фаз · ~3 тижні · RouterOS 6.49 → 7.22</p>
+    </div>
+
+    <div id="case-timeline" class="relative"></div>
+
+    <!-- CLI + WinBox -->
+    <div id="cli-winbox" class="mt-12">
+      <h3 class="text-white font-bold text-xl mb-6 text-center">
+        CLI + WinBox: два вікна — одна стратегія
+      </h3>
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="bg-slate-900 rounded-2xl p-6 border border-slate-700">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center">
+              <i class="ph-fill ph-terminal text-green-400 text-xl"></i>
+            </div>
+            <div>
+              <div class="text-white font-bold">SSH / CLI</div>
+              <div class="text-slate-500 text-xs">Виконання команд</div>
+            </div>
+          </div>
+          <ul class="text-slate-400 text-sm space-y-2">
+            <li class="flex gap-2"><i class="ph-fill ph-arrow-right text-brand-400 flex-shrink-0 mt-0.5"></i>Агент генерує RouterOS команди</li>
+            <li class="flex gap-2"><i class="ph-fill ph-arrow-right text-brand-400 flex-shrink-0 mt-0.5"></i>Ти копіюєш і виконуєш у SSH</li>
+            <li class="flex gap-2"><i class="ph-fill ph-arrow-right text-brand-400 flex-shrink-0 mt-0.5"></i>Результат повертаєш агенту</li>
+            <li class="flex gap-2"><i class="ph-fill ph-arrow-right text-brand-400 flex-shrink-0 mt-0.5"></i>Backup через scp автоматично</li>
+          </ul>
+        </div>
+        <div class="bg-slate-900 rounded-2xl p-6 border border-slate-700">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center">
+              <i class="ph-fill ph-eye text-cyan-400 text-xl"></i>
+            </div>
+            <div>
+              <div class="text-white font-bold">WinBox</div>
+              <div class="text-slate-500 text-xs">Візуальний контроль</div>
+            </div>
+          </div>
+          <ul class="text-slate-400 text-sm space-y-2">
+            <li class="flex gap-2"><i class="ph-fill ph-arrow-right text-cyan-400 flex-shrink-0 mt-0.5"></i>Відкрий IP Firewall → Filter Rules</li>
+            <li class="flex gap-2"><i class="ph-fill ph-arrow-right text-cyan-400 flex-shrink-0 mt-0.5"></i>Перевір що правила є і в правильному порядку</li>
+            <li class="flex gap-2"><i class="ph-fill ph-arrow-right text-cyan-400 flex-shrink-0 mt-0.5"></i>Переглянь Interfaces, DHCP Leases</li>
+            <li class="flex gap-2"><i class="ph-fill ph-arrow-right text-cyan-400 flex-shrink-0 mt-0.5"></i>Tools → WireGuard → Peers — перевір трафік</li>
+          </ul>
+        </div>
+      </div>
+      <div class="mt-6 code-block terminal-dots">
+<span class="cm"># Приклад реального діалогу з агентом:</span>
+
+<span class="hl">Ти:</span> <span class="str">"Перевір чи є forward rule для WireGuard клієнтів"</span>
+
+<span class="hl">Агент:</span> Скинь вивід /ip firewall filter print
+
+<span class="hl">Ти:</span> [вставляєш вивід з SSH]
+
+<span class="hl">Агент:</span> Правило відсутнє. Виконай:
+  /ip firewall filter add \
+    chain=forward \
+    src-address=<span class="str">10.0.99.0/24</span> \
+    action=accept \
+    comment=<span class="str">"WireGuard clients to LAN"</span> \
+    place-before=<span class="str">3</span>
+
+<span class="hl">Ти:</span> [виконуєш, відкриваєш WinBox для перевірки]
+</div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION: ДВА AI -->
+<section id="dual-ai" class="py-16 px-4 bg-slate-900">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-12">
+      <span class="text-yellow-400 text-sm font-semibold uppercase tracking-widest">Зв'язка AI</span>
+      <h2 class="text-3xl md:text-4xl font-bold text-white mt-2">Два комп'ютери — два AI</h2>
+      <p class="text-slate-400 mt-3 max-w-2xl mx-auto">Практика показала: один AI не завжди достатньо. ChatGPT + Claude Code = максимальна ефективність для новачка</p>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-6 mb-10">
+      <div class="bg-slate-800 rounded-2xl p-6 border border-slate-700 text-center">
+        <div class="w-14 h-14 rounded-full bg-green-900 flex items-center justify-center mx-auto mb-4">
+          <i class="ph-fill ph-chats text-green-400 text-2xl"></i>
+        </div>
+        <h3 class="text-white font-bold mb-2">ChatGPT (другий ПК)</h3>
+        <p class="text-slate-400 text-sm">Пояснює концепції, формулює завдання, допомагає зрозуміти що відбувається та які питання ставити Claude</p>
+      </div>
+      <div class="bg-slate-800 rounded-2xl p-6 border border-brand-700/50 text-center border-2">
+        <div class="w-14 h-14 rounded-full bg-brand-900 flex items-center justify-center mx-auto mb-4">
+          <i class="ph-fill ph-terminal text-brand-400 text-2xl"></i>
+        </div>
+        <h3 class="text-white font-bold mb-2">Claude Code CLI (основний)</h3>
+        <p class="text-slate-400 text-sm">Виконує технічну роботу: аналізує конфіги, генерує команди, зберігає файли, веде проєкт</p>
+      </div>
+      <div class="bg-slate-800 rounded-2xl p-6 border border-slate-700 text-center">
+        <div class="w-14 h-14 rounded-full bg-slate-700 flex items-center justify-center mx-auto mb-4">
+          <i class="ph-fill ph-user text-slate-300 text-2xl"></i>
+        </div>
+        <h3 class="text-white font-bold mb-2">Ти (оператор)</h3>
+        <p class="text-slate-400 text-sm">Копіюєш результати між AI, виконуєш команди на роутері, контролюєш через WinBox, приймаєш рішення</p>
+      </div>
+    </div>
+
+    <div class="bg-slate-800 rounded-2xl p-6 border border-slate-700">
+      <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+        <i class="ph-fill ph-warning text-yellow-400"></i>
+        Важлива правда про AI + мережі
+      </h3>
+      <div class="grid md:grid-cols-2 gap-4 text-sm text-slate-300">
+        <div class="flex gap-3">
+          <i class="ph-fill ph-warning-circle text-orange-400 text-lg flex-shrink-0 mt-0.5"></i>
+          <p>Налаштування обладнання — це <strong class="text-white">не лінійний процес</strong>. Завжди є баги, несподівані поведінки, залежності між правилами.</p>
+        </div>
+        <div class="flex gap-3">
+          <i class="ph-fill ph-info text-blue-400 text-lg flex-shrink-0 mt-0.5"></i>
+          <p>AI не має фізичного доступу до роутера — <strong class="text-white">він не бачить результату команди</strong> доки ти не скинеш йому вивід.</p>
+        </div>
+        <div class="flex gap-3">
+          <i class="ph-fill ph-shield-warning text-red-400 text-lg flex-shrink-0 mt-0.5"></i>
+          <p>Критичні зміни — <strong class="text-white">завжди backup</strong> перед виконанням і <strong class="text-white">уважно читай</strong> що пропонує агент.</p>
+        </div>
+        <div class="flex gap-3">
+          <i class="ph-fill ph-graduation-cap text-green-400 text-lg flex-shrink-0 mt-0.5"></i>
+          <p>Головна цінність: ти <strong class="text-white">навчаєшся</strong> поки робиш. Агент пояснює що і чому — це краще за будь-який курс.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION: ПРО САЙТ -->
+<section class="py-16 px-4 bg-gradient-to-br from-brand-950 to-slate-950 border-y border-brand-900/50">
+  <div class="max-w-4xl mx-auto text-center">
+    <div class="inline-flex items-center gap-2 bg-brand-900/60 border border-brand-700/50 text-brand-300 text-sm px-4 py-2 rounded-full mb-6">
+      <i class="ph-fill ph-magic-wand"></i>
+      Цей сайт також зроблений агентом
+    </div>
+    <h2 class="text-2xl md:text-3xl font-bold text-white mb-4">Рекурсія: AI створив сайт про AI</h2>
+    <p class="text-slate-400 leading-relaxed max-w-2xl mx-auto mb-8">
+      Цей сайт написаний Claude Code CLI агентом на основі реального проєкту MikroTik. Агент прочитав файли проєкту, звіти сесій, нотатки — і перетворив це на навчальний матеріал. HTML, CSS, JavaScript, контент, квіз — все без ручного кодування.
+    </p>
+    <div class="grid md:grid-cols-3 gap-4">
+      <div class="bg-white/5 rounded-xl p-4 border border-white/10">
+        <i class="ph-fill ph-file-code text-brand-400 text-2xl mb-2 block"></i>
+        <div class="text-white font-semibold text-sm">Один HTML файл</div>
+        <div class="text-slate-500 text-xs mt-1">~600 рядків коду</div>
+      </div>
+      <div class="bg-white/5 rounded-xl p-4 border border-white/10">
+        <i class="ph-fill ph-clock text-cyan-400 text-2xl mb-2 block"></i>
+        <div class="text-white font-semibold text-sm">~10 хвилин</div>
+        <div class="text-slate-500 text-xs mt-1">від запиту до деплою</div>
+      </div>
+      <div class="bg-white/5 rounded-xl p-4 border border-white/10">
+        <i class="ph-fill ph-rocket text-green-400 text-2xl mb-2 block"></i>
+        <div class="text-white font-semibold text-sm">GitHub + Vercel</div>
+        <div class="text-slate-500 text-xs mt-1">автоматичний деплой</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION: QUIZ -->
+<section id="quiz" class="py-16 px-4 bg-slate-900">
+  <div class="max-w-3xl mx-auto">
+    <div class="text-center mb-12">
+      <span class="text-pink-400 text-sm font-semibold uppercase tracking-widest">Перевір себе</span>
+      <h2 class="text-3xl md:text-4xl font-bold text-white mt-2">Квіз: AI-агенти та MikroTik</h2>
+      <p class="text-slate-400 mt-3">10 питань підвищеного рівня</p>
+    </div>
+
+    <div id="quiz-score" class="hidden bg-brand-900 border border-brand-700 rounded-2xl p-6 text-center mb-8">
+      <div class="text-4xl font-bold text-white mb-2" id="score-text"></div>
+      <div class="text-slate-400" id="score-desc"></div>
+      <button onclick="resetQuiz()" class="mt-4 bg-brand-600 hover:bg-brand-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">
+        Спробувати знову
+      </button>
+    </div>
+
+    <div id="quiz-container"></div>
+
+    <div class="text-center mt-8">
+      <button onclick="submitQuiz()" id="submit-btn" class="bg-brand-600 hover:bg-brand-500 text-white font-bold px-8 py-3 rounded-xl transition-colors text-sm hidden">
+        Перевірити відповіді
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION: AI ASSISTANT -->
+<section id="assistant" class="py-16 px-4 bg-slate-950">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-12">
+      <span class="text-brand-400 text-sm font-semibold uppercase tracking-widest">AI-Інструменти</span>
+      <h2 class="text-3xl md:text-4xl font-bold text-white mt-2">Запитай AI-асистента</h2>
+    </div>
+    <div class="grid md:grid-cols-2 gap-6">
+      <!-- Practice checker -->
+      <div class="bg-slate-900 rounded-2xl p-6 border border-slate-700">
+        <h3 class="text-white font-bold mb-1 flex items-center gap-2">
+          <i class="ph-fill ph-check-square text-green-400"></i>
+          Перевір свою конфігурацію
+        </h3>
+        <p class="text-slate-500 text-xs mb-4">Опиши що ти налаштував — AI скаже чи правильно</p>
+        <textarea id="check-input" rows="4" placeholder="Наприклад: Я закрив input chain, додав правило drop для WAN, але admin може заходити з LAN через address-list..."
+          class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-300 text-sm resize-none focus:outline-none focus:border-brand-500 placeholder-slate-600"></textarea>
+        <button onclick="checkConfig()" class="mt-3 w-full bg-green-700 hover:bg-green-600 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+          <i class="ph-fill ph-sparkle"></i> Перевірити
+        </button>
+        <div id="check-result" class="hidden mt-4 bg-slate-800 rounded-xl p-4 text-sm text-slate-300 ai-result"></div>
+      </div>
+
+      <!-- Q&A -->
+      <div class="bg-slate-900 rounded-2xl p-6 border border-slate-700">
+        <h3 class="text-white font-bold mb-1 flex items-center gap-2">
+          <i class="ph-fill ph-question text-brand-400"></i>
+          Q&A Асистент
+        </h3>
+        <p class="text-slate-500 text-xs mb-4">Питай про MikroTik, AI-агентів, WireGuard — все що стосується теми</p>
+        <input id="qa-input" type="text" placeholder="Питання про MikroTik або AI-агентів..."
+          class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-slate-300 text-sm focus:outline-none focus:border-brand-500 placeholder-slate-600"
+          onkeydown="if(event.key==='Enter') askAI()">
+        <button onclick="askAI()" class="mt-3 w-full bg-brand-700 hover:bg-brand-600 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+          <i class="ph-fill ph-paper-plane-right"></i> Запитати
+        </button>
+        <div id="qa-result" class="hidden mt-4 bg-slate-800 rounded-xl p-4 text-sm text-slate-300 ai-result"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="bg-slate-950 border-t border-slate-800 py-10 px-4">
+  <div class="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
+        <i class="ph-fill ph-robot text-white text-sm"></i>
+      </div>
+      <div>
+        <div class="text-white font-semibold text-sm">MikroTik × Claude Code CLI</div>
+        <div class="text-slate-500 text-xs">Зроблено AI-агентом · 2026</div>
+      </div>
+    </div>
+    <div class="text-slate-600 text-xs text-center">
+      Реальний кейс: RB4011iGS+ · RouterOS 7.22.1 · WireGuard VPN
+    </div>
+    <div class="flex items-center gap-4 text-xs text-slate-500">
+      <span>Claude Code CLI</span>
+      <span>·</span>
+      <span>Anthropic</span>
+      <span>·</span>
+      <span>MikroTik RouterOS</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+// ─── GEMINI CONFIG ────────────────────────────────────────────────────
+const GEMINI_KEY = 'AIzaSyAuXexsmMPfNM2_lZeAqU6OUaVUkxGAzsU';
+const GEMINI_TTS = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent';
+const GEMINI_LLM = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent';
+
+let currentAudio = null;
+let selectedText = '';
+
+// ─── PCM → WAV ────────────────────────────────────────────────────────
+function base64ToArrayBuffer(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function pcmToWav(pcmBuffer, sampleRate = 24000, channels = 1, bitDepth = 16) {
+  const pcmBytes = new Uint8Array(pcmBuffer);
+  const wavBuffer = new ArrayBuffer(44 + pcmBytes.length);
+  const view = new DataView(wavBuffer);
+  const write = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+  write(0, 'RIFF'); view.setUint32(4, 36 + pcmBytes.length, true);
+  write(8, 'WAVE'); write(12, 'fmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true); view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * channels * (bitDepth / 8), true);
+  view.setUint16(32, channels * (bitDepth / 8), true);
+  view.setUint16(34, bitDepth, true);
+  write(36, 'data'); view.setUint32(40, pcmBytes.length, true);
+  new Uint8Array(wavBuffer, 44).set(pcmBytes);
+  return URL.createObjectURL(new Blob([wavBuffer], { type: 'audio/wav' }));
+}
+
+async function generateTTSWithRetry(text, retries = 5) {
+  const delays = [1000, 2000, 4000, 8000, 16000];
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(`${GEMINI_TTS}?key=${GEMINI_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text }] }],
+          generationConfig: {
+            responseModalities: ['AUDIO'],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } }
+          }
+        })
+      });
+      const data = await res.json();
+      const part = data.candidates?.[0]?.content?.parts?.[0];
+      if (part?.inlineData?.data) {
+        const mimeType = part.inlineData.mimeType || '';
+        const match = mimeType.match(/rate=(\d+)/);
+        const rate = match ? parseInt(match[1]) : 24000;
+        return pcmToWav(base64ToArrayBuffer(part.inlineData.data), rate);
+      }
+    } catch (e) {}
+    if (i < retries - 1) await new Promise(r => setTimeout(r, delays[i]));
+  }
+  return null;
+}
+
+async function fetchGeminiWithRetry(prompt, systemInstruction, retries = 5) {
+  const delays = [1000, 2000, 4000, 8000, 16000];
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(`${GEMINI_LLM}?key=${GEMINI_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          contents: [{ role: 'user', parts: [{ text: prompt }] }]
+        })
+      });
+      const data = await res.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } catch (e) {}
+    if (i < retries - 1) await new Promise(r => setTimeout(r, delays[i]));
+  }
+  return 'Помилка з\'єднання з AI.';
+}
+
+// ─── SELECTION TOOLBAR ────────────────────────────────────────────────
+document.addEventListener('mouseup', (e) => {
+  if (e.target.closest('#selection-toolbar') || e.target.closest('#translation-popup')) return;
+  const sel = window.getSelection().toString().trim();
+  if (sel.length > 3) {
+    selectedText = sel;
+    const toolbar = document.getElementById('selection-toolbar');
+    toolbar.style.display = 'flex';
+    toolbar.style.left = (e.clientX) + 'px';
+    toolbar.style.top = (window.scrollY + e.clientY - 50) + 'px';
+  } else {
+    document.getElementById('selection-toolbar').style.display = 'none';
+  }
+});
+
+document.addEventListener('mousedown', (e) => {
+  if (!e.target.closest('#selection-toolbar') && !e.target.closest('#translation-popup')) {
+    document.getElementById('selection-toolbar').style.display = 'none';
+  }
+});
+
+async function handleTTS() {
+  document.getElementById('selection-toolbar').style.display = 'none';
+  if (!selectedText) return;
+  if (currentAudio) currentAudio.pause();
+  const url = await generateTTSWithRetry(selectedText);
+  if (url) { currentAudio = new Audio(url); currentAudio.play(); }
+}
+
+async function handleTranslate() {
+  document.getElementById('selection-toolbar').style.display = 'none';
+  if (!selectedText) return;
+  const popup = document.getElementById('translation-popup');
+  const textEl = document.getElementById('translation-text');
+  popup.style.display = 'block';
+  popup.style.left = '50%'; popup.style.top = '200px';
+  popup.style.transform = 'translateX(-50%)';
+  textEl.textContent = '⏳ Перекладаю...';
+  const result = await fetchGeminiWithRetry(
+    selectedText,
+    'Перекладай технічні тексти на українську. Якщо текст вже українською — перекладай на англійську. Надай ТІЛЬКИ переклад без вступних фраз та пояснень.'
+  );
+  textEl.textContent = result;
+}
+
+function closeTranslation() {
+  document.getElementById('translation-popup').style.display = 'none';
+}
+
+// ─── DATA ─────────────────────────────────────────────────────────────
+const systemsData = [
+  { icon: 'ph-fill ph-shield', color: 'text-red-400', bg: 'bg-red-900/30', border: 'border-red-800/50',
+    title: 'Firewall', sub: 'Ключова система безпеки',
+    desc: 'Три ланцюги: input (до роутера), forward (через роутер), output. Базовий принцип: default deny + дозволити тільки потрібне.' },
+  { icon: 'ph-fill ph-arrows-left-right', color: 'text-blue-400', bg: 'bg-blue-900/30', border: 'border-blue-800/50',
+    title: 'NAT', sub: 'Трансляція адрес',
+    desc: 'srcnat (masquerade для виходу в інтернет) та dstnat (port forwarding). Правило: тримай NAT мінімальним — тільки те що реально потрібно.' },
+  { icon: 'ph-fill ph-network', color: 'text-green-400', bg: 'bg-green-900/30', border: 'border-green-800/50',
+    title: 'Bridge / VLAN', sub: 'L2 комутація',
+    desc: 'Bridge об\'єднує інтерфейси в один L2-домен. WAN-інтерфейс НЕ має бути в bridge разом з LAN — типова помилка новачків.' },
+  { icon: 'ph-fill ph-wifi-high', color: 'text-yellow-400', bg: 'bg-yellow-900/30', border: 'border-yellow-800/50',
+    title: 'DHCP Server', sub: 'Автоматичні адреси',
+    desc: 'Видає IP-адреси пристроям. Для критичних пристроїв (admin, RPi) — static leases: фіксована IP за MAC-адресою.' },
+  { icon: 'ph-fill ph-lock-key', color: 'text-purple-400', bg: 'bg-purple-900/30', border: 'border-purple-800/50',
+    title: 'WireGuard VPN', sub: 'Тільки RouterOS 7+',
+    desc: 'Сучасний VPN-протокол. Швидший та простіший за OpenVPN/IPSec. Кожен клієнт — окремий peer з унікальним keypair та allowed-address.' },
+  { icon: 'ph-fill ph-wrench', color: 'text-cyan-400', bg: 'bg-cyan-900/30', border: 'border-cyan-800/50',
+    title: 'Services', sub: 'Доступ до роутера',
+    desc: 'SSH (22), WinBox (8291), API тощо. Золоте правило: вимкни все непотрібне, а потрібне — обмеж по IP. Ніколи не залишай WinBox відкритим на WAN.' },
+];
+
+const caseData = [
+  { phase: 'Фаза 0', title: 'Аудит', color: 'text-slate-400', bg: 'bg-slate-700',
+    desc: 'Повний збір конфігурації: /export, /ip firewall print, /system resource. Агент проаналізував і склав roadmap змін.',
+    result: 'Знайдено: SSTP VPN з паролем у відкритому тексті, DVR-порти відкриті на WAN, 15+ legacy правил' },
+  { phase: 'Фаза 1', title: 'Очищення', color: 'text-yellow-400', bg: 'bg-yellow-900',
+    desc: 'Видалення непотрібного: LoRa, мертві scheduler, зайві DHCP-клієнти, DDNS, legacy firewall rules.',
+    result: 'Конфіг зменшився на 35%. Тепер видно що є і навіщо' },
+  { phase: 'Фаза 2', title: 'Hardening', color: 'text-red-400', bg: 'bg-red-900',
+    desc: 'Firewall input: default deny. Address-list admin. Static DHCP leases. Scanner detection. Services обмежено по LAN.',
+    result: '0 відкритих портів на WAN. Тільки admin має доступ до роутера' },
+  { phase: 'Фаза 3', title: 'DVR безпека', color: 'text-orange-400', bg: 'bg-orange-900',
+    desc: 'WAN port forwarding на DVR вимкнено. Залишили P2P Dahua cloud тимчасово до WireGuard.',
+    result: 'DVR більше недоступний напряму з інтернету' },
+  { phase: 'Фаза 4', title: 'Upgrade v7', color: 'text-blue-400', bg: 'bg-blue-900',
+    desc: 'RouterBOOT + RouterOS: 6.49.19 → 7.22.1. Архітектура arm. Backup перед upgrade. Все налаштування збереглось.',
+    result: 'RouterOS 7.22.1 stable. WireGuard тепер доступний' },
+  { phase: 'Фаза 5', title: 'WireGuard VPN', color: 'text-green-400', bg: 'bg-green-900',
+    desc: 'Інтерфейс wg0 (UDP 51820). 8 peers з QR-кодами. Split tunnel. Доступ до DVR, RPi, роутера з будь-якої точки.',
+    result: 'Родина підключена. DVR через VPN без P2P cloud' },
+];
+
+const quizData = [
+  {
+    q: 'Яка ключова відмінність між Claude Code CLI агентом та звичайним чатботом?',
+    opts: [
+      'A. Агент працює швидше та дешевше',
+      'B. Агент може читати файли, виконувати команди та зберігати результати між сесіями',
+      'C. Агент використовує іншу мовну модель'
+    ],
+    a: 1
+  },
+  {
+    q: 'В RouterOS файервол правило в ланцюзі "input" з action=drop in-interface-list=WAN — що це означає?',
+    opts: [
+      'A. Блокує трафік що йде через роутер з WAN в LAN',
+      'B. Блокує трафік що намагається потрапити безпосередньо на роутер з WAN інтерфейсу',
+      'C. Блокує весь вихідний трафік на WAN'
+    ],
+    a: 1
+  },
+  {
+    q: 'Чому WireGuard VPN доступний тільки в RouterOS 7, а не 6?',
+    opts: [
+      'A. Це маркетингове рішення MikroTik без технічних причин',
+      'B. WireGuard потребує нового ядра Linux та криптографічних бібліотек, які є тільки у v7',
+      'C. В RouterOS 6 немає UDP підтримки'
+    ],
+    a: 1
+  },
+  {
+    q: 'Що таке "split tunnel" у VPN конфігурації?',
+    opts: [
+      'A. Режим де весь інтернет-трафік йде через VPN',
+      'B. Режим де через VPN йде тільки трафік до вказаних підмереж, решта — напряму',
+      'C. Технологія розподілу навантаження між двома VPN-серверами'
+    ],
+    a: 1
+  },
+  {
+    q: 'Навіщо в CLAUDE.md для MikroTik проєкту правило "НІКОЛИ не вносити зміни без явної команди"?',
+    opts: [
+      'A. Щоб зменшити витрати на API',
+      'B. Неправильна конфігурація може заблокувати доступ до роутера і залишити без інтернету',
+      'C. MikroTik блокує автоматичні підключення'
+    ],
+    a: 1
+  },
+  {
+    q: 'Що означає "allowed-address=10.0.99.2/32" у WireGuard peer конфігурації на стороні сервера?',
+    opts: [
+      'A. IP-адреса яку може мати цей клієнт у тунелі — тільки /32 одна адреса',
+      'B. Підмережа з якої клієнт може підключатись до інтернету',
+      'C. Маршрут що буде доданий до таблиці маршрутизації LAN'
+    ],
+    a: 0
+  },
+  {
+    q: 'Яку роль відіграє address-list "admin" у firewall правилі "ALLOW admin devices"?',
+    opts: [
+      'A. Групує IP-адреси адмін-пристроїв для зручного управління і швидкого додавання нових',
+      'B. Автоматично блокує всі пристрої не в списку',
+      'C. Резервує IP-адреси в DHCP сервері'
+    ],
+    a: 0
+  },
+  {
+    q: 'Що таке MCP (Model Context Protocol) у контексті AI-агентів?',
+    opts: [
+      'A. Протокол передачі даних між двома мовними моделями',
+      'B. Стандарт для підключення зовнішніх інструментів та джерел даних до AI-агентів',
+      'C. Система оцінки якості відповідей AI'
+    ],
+    a: 1
+  },
+  {
+    q: 'Навіщо робити RouterBOOT upgrade окремо від RouterOS upgrade?',
+    opts: [
+      'A. RouterBOOT — це firmware завантажувача (bootloader), він оновлюється незалежно і потребує окремого reboot',
+      'B. RouterBOOT upgrade збільшує швидкість процесора',
+      'C. Це не потрібно — сучасні версії RouterOS оновлюють все автоматично'
+    ],
+    a: 0
+  },
+  {
+    q: 'Яка найбільша практична цінність зв\'язки ChatGPT + Claude Code CLI при налаштуванні мережі?',
+    opts: [
+      'A. Швидший інтернет після налаштування',
+      'B. ChatGPT пояснює концепції і формулює питання, Claude Code виконує технічну роботу — людина без досвіду може вирішувати складні задачі',
+      'C. Два AI разом коштують дешевше ніж один'
+    ],
+    a: 1
+  }
+];
+
+// ─── RENDER SYSTEMS ───────────────────────────────────────────────────
+function renderSystems() {
+  const grid = document.getElementById('systems-grid');
+  systemsData.forEach(s => {
+    grid.innerHTML += `
+      <div class="${s.bg} border ${s.border} rounded-2xl p-5">
+        <div class="flex items-start gap-3 mb-3">
+          <i class="${s.icon} ${s.color} text-2xl flex-shrink-0 mt-0.5"></i>
+          <div>
+            <div class="text-white font-bold">${s.title}</div>
+            <div class="text-slate-500 text-xs">${s.sub}</div>
+          </div>
+        </div>
+        <p class="text-slate-400 text-sm leading-relaxed">${s.desc}</p>
+      </div>`;
+  });
+}
+
+// ─── RENDER CASE ──────────────────────────────────────────────────────
+function renderCase() {
+  const el = document.getElementById('case-timeline');
+  caseData.forEach((item, i) => {
+    el.innerHTML += `
+      <div class="flex gap-4 mb-6">
+        <div class="flex flex-col items-center">
+          <div class="w-10 h-10 ${item.bg} rounded-full flex items-center justify-center flex-shrink-0">
+            <span class="${item.color} font-bold text-xs">${i + 1}</span>
+          </div>
+          ${i < caseData.length - 1 ? '<div class="w-0.5 flex-1 bg-slate-800 my-1"></div>' : ''}
+        </div>
+        <div class="flex-1 pb-4">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="${item.color} text-xs font-semibold">${item.phase}</span>
+            <span class="text-white font-bold">${item.title}</span>
+          </div>
+          <p class="text-slate-400 text-sm mb-2">${item.desc}</p>
+          <div class="bg-slate-900 rounded-lg px-3 py-2 text-xs text-slate-500 flex items-start gap-2">
+            <i class="ph-fill ph-check-circle text-green-400 flex-shrink-0 mt-0.5"></i>
+            <span>${item.result}</span>
+          </div>
+        </div>
+      </div>`;
+  });
+}
+
+// ─── QUIZ ─────────────────────────────────────────────────────────────
+let quizAnswers = new Array(quizData.length).fill(null);
+
+function renderQuiz() {
+  const container = document.getElementById('quiz-container');
+  container.innerHTML = '';
+  quizData.forEach((q, qi) => {
+    container.innerHTML += `
+      <div class="bg-slate-900 rounded-2xl p-6 border border-slate-800 mb-4" id="q-${qi}">
+        <div class="text-xs text-brand-400 font-semibold mb-2">Питання ${qi + 1} / ${quizData.length}</div>
+        <p class="text-white font-semibold mb-4 leading-relaxed">${q.q}</p>
+        <div class="space-y-2">
+          ${q.opts.map((opt, oi) => `
+            <button class="quiz-option" onclick="selectAnswer(${qi}, ${oi}, this)" id="opt-${qi}-${oi}">
+              ${opt}
+            </button>`).join('')}
+        </div>
+        <div id="exp-${qi}" class="hidden mt-3 text-xs text-green-400 flex items-start gap-2">
+          <i class="ph-fill ph-check-circle flex-shrink-0 mt-0.5"></i>
+          <span></span>
+        </div>
+      </div>`;
+  });
+}
+
+function selectAnswer(qi, oi, btn) {
+  const q = document.getElementById(`q-${qi}`);
+  q.querySelectorAll('.quiz-option').forEach(b => {
+    b.classList.remove('correct', 'wrong', 'border-brand-500', 'bg-brand-50');
+  });
+  btn.classList.add('border-brand-500');
+  btn.style.borderColor = '#3b82f6';
+  btn.style.background = '#eff6ff';
+  btn.style.color = '#1e40af';
+  quizAnswers[qi] = oi;
+  const answered = quizAnswers.filter(a => a !== null).length;
+  if (answered > 0) document.getElementById('submit-btn').classList.remove('hidden');
+}
+
+function submitQuiz() {
+  let score = 0;
+  quizData.forEach((q, qi) => {
+    const correct = q.a;
+    const chosen = quizAnswers[qi];
+    q.opts.forEach((_, oi) => {
+      const btn = document.getElementById(`opt-${qi}-${oi}`);
+      btn.style.borderColor = '';
+      btn.style.background = '';
+      btn.style.color = '';
+      btn.disabled = true;
+      if (oi === correct) {
+        btn.classList.add('correct');
+      } else if (oi === chosen && oi !== correct) {
+        btn.classList.add('wrong');
+      }
+    });
+    if (chosen === correct) score++;
+    const expEl = document.getElementById(`exp-${qi}`);
+    expEl.classList.remove('hidden');
+    expEl.querySelector('span').textContent = `Правильна відповідь: ${q.opts[correct]}`;
+  });
+
+  document.getElementById('submit-btn').classList.add('hidden');
+  const scoreEl = document.getElementById('quiz-score');
+  scoreEl.classList.remove('hidden');
+  document.getElementById('score-text').textContent = `${score} / ${quizData.length}`;
+  const descs = ['Не здавайся — перечитай матеріал!', 'Непогано, але є куди рости', 'Добре! Ти на правильному шляху', 'Відмінно! Ти розумієш тему', 'Експерт! Готовий до реального кейсу'];
+  const idx = Math.floor((score / quizData.length) * (descs.length - 1));
+  document.getElementById('score-desc').textContent = descs[idx];
+  scoreEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function resetQuiz() {
+  quizAnswers = new Array(quizData.length).fill(null);
+  document.getElementById('quiz-score').classList.add('hidden');
+  renderQuiz();
+  document.getElementById('submit-btn').classList.add('hidden');
+}
+
+// ─── AI TOOLS ─────────────────────────────────────────────────────────
+async function checkConfig() {
+  const text = document.getElementById('check-input').value.trim();
+  if (!text) return;
+  const btn = event.target.closest('button');
+  btn.innerHTML = '<i class="ph-fill ph-spinner animate-spin"></i> Аналізую...';
+  btn.disabled = true;
+  const result = await fetchGeminiWithRetry(
+    `Студент описує свою конфігурацію MikroTik: "${text}". Перевір правильність підходу.`,
+    `Ти досвідчений мережевий інженер та викладач, спеціаліст з MikroTik RouterOS.
+     Аналізуй описану конфігурацію за критеріями: безпека, правильність логіки, відповідність best practices.
+     Відповідай українською. Починай з ✅ якщо правильно, ⚠️ якщо є питання, ❌ якщо є помилки.
+     Не більше 5 речень. Давай конкретні поради.`
+  );
+  const resultEl = document.getElementById('check-result');
+  resultEl.classList.remove('hidden');
+  resultEl.innerHTML = marked.parse(result);
+  btn.innerHTML = '<i class="ph-fill ph-sparkle"></i> Перевірити';
+  btn.disabled = false;
+}
+
+async function askAI() {
+  const text = document.getElementById('qa-input').value.trim();
+  if (!text) return;
+  const btn = event.target.closest('button') || document.querySelector('#assistant button:last-child');
+  const askBtn = document.querySelectorAll('#assistant button')[1];
+  askBtn.innerHTML = '<i class="ph-fill ph-spinner animate-spin"></i> Думаю...';
+  askBtn.disabled = true;
+  const result = await fetchGeminiWithRetry(
+    text,
+    `Ти AI-асистент, експерт з MikroTik RouterOS, мережевої безпеки та AI-агентів (Claude Code CLI).
+     Тема сайту: використання AI-агентів для налаштування MikroTik роутерів без мережевого досвіду.
+     Ключові теми: RouterOS, firewall (input/forward/NAT), WireGuard VPN, Claude Code CLI, ChatGPT+Claude зв'язка.
+     Відповідай українською. Не більше 4 речень. Якщо доречно — наводь конкретні команди.`
+  );
+  const resultEl = document.getElementById('qa-result');
+  resultEl.classList.remove('hidden');
+  resultEl.innerHTML = marked.parse(result);
+  askBtn.innerHTML = '<i class="ph-fill ph-paper-plane-right"></i> Запитати';
+  askBtn.disabled = false;
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────
+renderSystems();
+renderCase();
+renderQuiz();
+</script>
+</body>
+</html>
