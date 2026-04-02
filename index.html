@@ -884,7 +884,8 @@ const quizData = [
       'B. Агент може читати файли, виконувати команди та зберігати результати між сесіями',
       'C. Агент використовує іншу мовну модель'
     ],
-    a: 1
+    a: 1,
+    exp: 'Чатбот лише генерує текст у відповідь на запит. AI-агент має інструменти (tools): він читає файли на диску, виконує bash-команди, робить HTTP-запити і зберігає результати. Саме тому Claude Code CLI може взяти конфіг роутера, проаналізувати його і записати звіт — без будь-якого copy-paste від людини. Ключове слово: агент діє, чатбот відповідає.'
   },
   {
     q: 'В RouterOS файервол правило в ланцюзі "input" з action=drop in-interface-list=WAN — що це означає?',
@@ -893,7 +894,8 @@ const quizData = [
       'B. Блокує трафік що намагається потрапити безпосередньо на роутер з WAN інтерфейсу',
       'C. Блокує весь вихідний трафік на WAN'
     ],
-    a: 1
+    a: 1,
+    exp: 'У RouterOS три ланцюги: input (трафік ДО роутера — SSH, WinBox, API), forward (трафік ЧЕРЕЗ роутер — з LAN в інтернет) і output (від самого роутера). Правило в "input" з WAN захищає сам роутер: без нього SSH на порту 22 відкритий для всього інтернету і сканери знайдуть його за лічені хвилини. Варіант A — це forward chain. Варіант C — це output chain.'
   },
   {
     q: 'Чому WireGuard VPN доступний тільки в RouterOS 7, а не 6?',
@@ -902,7 +904,8 @@ const quizData = [
       'B. WireGuard потребує нового ядра Linux та криптографічних бібліотек, які є тільки у v7',
       'C. В RouterOS 6 немає UDP підтримки'
     ],
-    a: 1
+    a: 1,
+    exp: 'WireGuard вбудований у ядро Linux починаючи з версії 5.6 (2020 р.). RouterOS 6 базується на ядрі Linux 3.x — WireGuard там просто відсутній на рівні ОС. RouterOS 7 перейшов на ядро 5.x, тому WireGuard став доступний нативно. Саме тому апгрейд з v6 на v7 — це не просто нові функції, це інша платформа. UDP підтримка в RouterOS 6 є (OpenVPN по UDP там працює).'
   },
   {
     q: 'Що таке "split tunnel" у VPN конфігурації?',
@@ -911,7 +914,8 @@ const quizData = [
       'B. Режим де через VPN йде тільки трафік до вказаних підмереж, решта — напряму',
       'C. Технологія розподілу навантаження між двома VPN-серверами'
     ],
-    a: 1
+    a: 1,
+    exp: 'Split tunnel "розщеплює" трафік: тільки потрібні підмережі (наприклад 10.0.0.0/24 — домашня мережа) йдуть через VPN-тунель, а весь інший інтернет (YouTube, Google) іде напряму. Це швидше і не навантажує домашній роутер. У WireGuard налаштовується через AllowedIPs на клієнті. Якщо вказати 0.0.0.0/0 — це вже full tunnel (варіант A), весь трафік через VPN.'
   },
   {
     q: 'Навіщо в CLAUDE.md для MikroTik проєкту правило "НІКОЛИ не вносити зміни без явної команди"?',
@@ -920,7 +924,8 @@ const quizData = [
       'B. Неправильна конфігурація може заблокувати доступ до роутера і залишити без інтернету',
       'C. MikroTik блокує автоматичні підключення'
     ],
-    a: 1
+    a: 1,
+    exp: 'Це правило безпеки №1 при автоматизації мережевого обладнання. Одне неправильне firewall-правило — і SSH заблоковано, WinBox заблоковано, інтернет у всієї родини зник. Відновлення потребує фізичного доступу до консольного порту. Тому будь-яка зміна: 1) явна команда від людини → 2) backup збережено → 3) зміна внесена → 4) доступ перевірено. AI-агент без цього правила може "допомогти" так, що доведеться їхати до обладнання.'
   },
   {
     q: 'Що означає "allowed-address=10.0.99.2/32" у WireGuard peer конфігурації на стороні сервера?',
@@ -929,7 +934,8 @@ const quizData = [
       'B. Підмережа з якої клієнт може підключатись до інтернету',
       'C. Маршрут що буде доданий до таблиці маршрутизації LAN'
     ],
-    a: 0
+    a: 0,
+    exp: 'На WireGuard-сервері "allowed-address" для peer — це IP-адреса клієнта всередині тунелю. /32 означає рівно одну адресу. Сервер використовує це як routing table: пакети до 10.0.99.2 → відправити цьому peer. Пакети від цього peer з іншою source IP — відкинути. Саме так сервер розрізняє клієнтів між собою. Якщо поставити /24 — цей клієнт зможе маршрутизувати цілу підмережу через тунель (це потрібно для site-to-site VPN).'
   },
   {
     q: 'Яку роль відіграє address-list "admin" у firewall правилі "ALLOW admin devices"?',
@@ -938,7 +944,8 @@ const quizData = [
       'B. Автоматично блокує всі пристрої не в списку',
       'C. Резервує IP-адреси в DHCP сервері'
     ],
-    a: 0
+    a: 0,
+    exp: 'Address list у RouterOS — це іменована група IP-адрес. Замість окремого firewall-правила для кожного пристрою (MacBook, ПК, телефон) — одне правило "src-address-list=admin → accept" і список адрес. Додати новий пристрій = додати IP до списку, не чіпаючи правила. Це найкраща практика: firewall-правила стають читабельними і підтримуваними. Блокування інших — окреме правило "default deny" в кінці ланцюга, не сам address list.'
   },
   {
     q: 'Що таке MCP (Model Context Protocol) у контексті AI-агентів?',
@@ -947,7 +954,8 @@ const quizData = [
       'B. Стандарт для підключення зовнішніх інструментів та джерел даних до AI-агентів',
       'C. Система оцінки якості відповідей AI'
     ],
-    a: 1
+    a: 1,
+    exp: 'MCP (розроблений Anthropic, відкритий стандарт) — це як USB-C для AI: уніфікований інтерфейс між моделлю і зовнішніми інструментами. Без MCP кожна інтеграція (файлова система, GitHub, база даних, браузер) потребувала б кастомного коду. З MCP: будь-який MCP-сервер автоматично доступний будь-якому MCP-клієнту (Claude, VS Code extension, тощо). Claude Code CLI використовує MCP для підключення інструментів читання файлів, виконання команд, веб-пошуку.'
   },
   {
     q: 'Навіщо робити RouterBOOT upgrade окремо від RouterOS upgrade?',
@@ -956,7 +964,8 @@ const quizData = [
       'B. RouterBOOT upgrade збільшує швидкість процесора',
       'C. Це не потрібно — сучасні версії RouterOS оновлюють все автоматично'
     ],
-    a: 0
+    a: 0,
+    exp: 'RouterBOOT — це перший код що запускається на пристрої (як BIOS/UEFI на комп\'ютері). Він зберігається в окремій flash-пам\'яті і відповідає за завантаження RouterOS. При апгрейді RouterOS завантажувач не оновлюється автоматично. Після оновлення OS треба зайти в System → RouterBOOT → натиснути Upgrade → reboot. Без цього нова версія RouterOS може некоректно працювати зі старим bootloader, або втратиш деякі можливості нового firmware.'
   },
   {
     q: 'Яка найбільша практична цінність зв\'язки ChatGPT + Claude Code CLI при налаштуванні мережі?',
@@ -965,7 +974,8 @@ const quizData = [
       'B. ChatGPT пояснює концепції і формулює питання, Claude Code виконує технічну роботу — людина без досвіду може вирішувати складні задачі',
       'C. Два AI разом коштують дешевше ніж один'
     ],
-    a: 1
+    a: 1,
+    exp: 'Це "dual AI" підхід з реального кейсу цього сайту. ChatGPT використовується як вчитель і перекладач: пояснює що таке firewall chain, допомагає сформулювати технічне завдання зрозумілою мовою. Claude Code CLI — виконавець: читає конфіг роутера, пише скрипти, вносить зміни (з підтвердженням). Людина без мережевого досвіду керує процесом, розуміє що відбувається (завдяки ChatGPT) і досягає результату (завдяки Claude). Це і є "AI-агент як мережевий інженер".'
   }
 ];
 
@@ -1019,63 +1029,72 @@ let quizAnswers = new Array(quizData.length).fill(null);
 
 function renderQuiz() {
   const container = document.getElementById('quiz-container');
-  container.innerHTML = '';
+  let html = '';
   quizData.forEach((q, qi) => {
-    container.innerHTML += `
+    html += `
       <div class="bg-slate-900 rounded-2xl p-6 border border-slate-800 mb-4" id="q-${qi}">
         <div class="text-xs text-brand-400 font-semibold mb-2">Питання ${qi + 1} / ${quizData.length}</div>
         <p class="text-white font-semibold mb-4 leading-relaxed">${q.q}</p>
-        <div class="space-y-2">
+        <div>
           ${q.opts.map((opt, oi) => `
-            <button class="quiz-option" onclick="selectAnswer(${qi}, ${oi}, this)" id="opt-${qi}-${oi}">
+            <button class="quiz-option" id="opt-${qi}-${oi}">
               ${opt}
             </button>`).join('')}
         </div>
-        <div id="exp-${qi}" class="hidden mt-3 text-xs text-green-400 flex items-start gap-2">
-          <i class="ph-fill ph-check-circle flex-shrink-0 mt-0.5"></i>
-          <span></span>
+        <div id="exp-${qi}" class="hidden mt-4 rounded-xl p-4 bg-slate-800 border border-slate-700 text-sm">
+          <div class="flex items-center gap-2 mb-2 font-semibold text-green-400">
+            <i class="ph-fill ph-check-circle flex-shrink-0"></i>
+            <span id="exp-ans-${qi}"></span>
+          </div>
+          <p class="text-slate-300 leading-relaxed" id="exp-text-${qi}"></p>
         </div>
       </div>`;
+  });
+  container.innerHTML = html;
+
+  // Attach event listeners after DOM is set
+  quizData.forEach((q, qi) => {
+    q.opts.forEach((_, oi) => {
+      const btn = document.getElementById(`opt-${qi}-${oi}`);
+      btn.addEventListener('click', () => selectAnswer(qi, oi, btn));
+    });
   });
 }
 
 function selectAnswer(qi, oi, btn) {
+  const correct = quizData[qi].a;
+  quizAnswers[qi] = oi;
+
+  // Disable all buttons in this question
   const q = document.getElementById(`q-${qi}`);
   q.querySelectorAll('.quiz-option').forEach(b => {
-    b.classList.remove('correct', 'wrong', 'border-brand-500', 'bg-brand-50');
+    b.disabled = true;
+    b.style.borderColor = '';
+    b.style.background = '';
+    b.style.color = '';
   });
-  btn.classList.add('border-brand-500');
-  btn.style.borderColor = '#3b82f6';
-  btn.style.background = '#eff6ff';
-  btn.style.color = '#1e40af';
-  quizAnswers[qi] = oi;
+
+  // Highlight correct answer green, wrong choice red
+  document.getElementById(`opt-${qi}-${correct}`).classList.add('correct');
+  if (oi !== correct) {
+    btn.classList.add('wrong');
+  }
+
+  // Show explanation
+  const expEl = document.getElementById(`exp-${qi}`);
+  expEl.classList.remove('hidden');
+  document.getElementById(`exp-ans-${qi}`).textContent = `✓ ${quizData[qi].opts[correct]}`;
+  document.getElementById(`exp-text-${qi}`).textContent = quizData[qi].exp;
+
+  // Show submit button when all questions answered
   const answered = quizAnswers.filter(a => a !== null).length;
-  if (answered > 0) document.getElementById('submit-btn').classList.remove('hidden');
+  if (answered === quizData.length) {
+    document.getElementById('submit-btn').classList.remove('hidden');
+  }
 }
 
 function submitQuiz() {
-  let score = 0;
-  quizData.forEach((q, qi) => {
-    const correct = q.a;
-    const chosen = quizAnswers[qi];
-    q.opts.forEach((_, oi) => {
-      const btn = document.getElementById(`opt-${qi}-${oi}`);
-      btn.style.borderColor = '';
-      btn.style.background = '';
-      btn.style.color = '';
-      btn.disabled = true;
-      if (oi === correct) {
-        btn.classList.add('correct');
-      } else if (oi === chosen && oi !== correct) {
-        btn.classList.add('wrong');
-      }
-    });
-    if (chosen === correct) score++;
-    const expEl = document.getElementById(`exp-${qi}`);
-    expEl.classList.remove('hidden');
-    expEl.querySelector('span').textContent = `Правильна відповідь: ${q.opts[correct]}`;
-  });
-
+  const score = quizAnswers.filter((ans, qi) => ans === quizData[qi].a).length;
   document.getElementById('submit-btn').classList.add('hidden');
   const scoreEl = document.getElementById('quiz-score');
   scoreEl.classList.remove('hidden');
